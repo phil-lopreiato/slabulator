@@ -16,7 +16,7 @@
  */
 static uint8_t _create_hash_on_create = 1;
 static void
-_kmem_init_global_caches()
+__init_global_caches()
 {
         void *firstpage;
 
@@ -35,7 +35,7 @@ _kmem_init_global_caches()
         money_cache->type = KM_SMALL_CACHE;
         money_cache->hash = NULL;
 
-        _kmem_slab_init_small(money_cache, money_cache, 1);
+        __slab_init_small(money_cache, money_cache, 1);
 
         hash_node_cache = kmem_cache_create("hash_node_cache",
                                             sizeof(struct kmem_hash_node),
@@ -83,7 +83,7 @@ kmem_cache_create(char *name, size_t size, size_t align)
                 DEBUG_PRINT("System page size is %lu bytes\n", system_pagesize);
         }
         if (!money_cache) {
-                _kmem_init_global_caches();
+                __init_global_caches();
         }
 
         cp = kmem_cache_alloc(money_cache, KM_SLEEP);
@@ -111,7 +111,7 @@ kmem_cache_create(char *name, size_t size, size_t align)
         }
 
         // Add the first slab, so we're ready to go at first allocation
-        if (!_kmem_cache_grow(cp, KM_SLEEP)) {
+        if (!__cache_grow(cp, KM_SLEEP)) {
         DEBUG_PRINT("Failed adding initial slab to cache %s\n", name);
         }
 
@@ -140,7 +140,7 @@ kmem_cache_alloc(struct kmem_cache *cp, int flags)
         while (!slab || slab->refcount >= slab->size) {
                 // No slabs are available, get a new one
                 DEBUG_PRINT("Growing the cache...\n");
-                slab = _kmem_cache_grow(cp, flags);
+                slab = __cache_grow(cp, flags);
                 if (!slab && flags == KM_NOSLEEP) break;
         }
 
@@ -150,13 +150,13 @@ kmem_cache_alloc(struct kmem_cache *cp, int flags)
         }
 
         data = cp->type == KM_REGULAR_CACHE
-                ? _kmem_cache_alloc_large(cp, slab)
-                : _kmem_cache_alloc_small(cp, slab);
+                ? __cache_alloc_large(cp, slab)
+                : __cache_alloc_small(cp, slab);
 
         if (slab->size == slab->refcount) {
                 // Slab is full, move it off the cache's freelist
                 DEBUG_PRINT("Slab is now complete, moving...\n");
-                _kmem_slab_complete(cp, slab);
+                __slab_complete(cp, slab);
         }
 
         return data;
@@ -169,9 +169,9 @@ void
 kmem_cache_free(struct kmem_cache *cp, void *buf)
 {
         if (cp->type == KM_SMALL_CACHE) {
-                _kmem_cache_free_small(cp, buf);
+                __cache_free_small(cp, buf);
         } else {
-                _kmem_cache_free_large(cp, buf);
+                __cache_free_large(cp, buf);
         }
 }
 
@@ -183,5 +183,5 @@ kmem_cache_destroy(struct kmem_cache *cp)
 {
         kmem_hash_free(hash_cache, cp->hash);
         cp->freelist = NULL;
-        _kmem_cache_reap(cp, 1);
+        __cache_reap(cp, 1);
 }

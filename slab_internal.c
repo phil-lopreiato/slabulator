@@ -31,7 +31,7 @@ static size_t system_pagesize = 0;
  * to the end of the list
  */
 static inline void
-_kmem_cache_add_slab(struct kmem_cache *cp, struct kmem_slab *slab)
+__cache_add_slab(struct kmem_cache *cp, struct kmem_slab *slab)
 {
         struct kmem_slab *head;
         struct kmem_slab *tail;
@@ -80,7 +80,7 @@ _kmem_cache_add_slab(struct kmem_cache *cp, struct kmem_slab *slab)
  * These slabs should be empty (e.g. refcount 0)
  */
 static inline void
-_kmem_cache_empty_slab(struct kmem_cache *cp, struct kmem_slab *slab)
+__cache_empty_slab(struct kmem_cache *cp, struct kmem_slab *slab)
 {
         DEBUG_PRINT("Moving slab %p to HEAD of freelist of cache %s\n", (void*)(slab->last), cp->name);
         if (cp->freelist == slab) {
@@ -115,7 +115,7 @@ _kmem_cache_empty_slab(struct kmem_cache *cp, struct kmem_slab *slab)
  * Remove this slab from the list
  */
 static inline void
-_kmem_cache_remove_slab(struct kmem_cache *cp, struct kmem_slab *slab)
+__cache_remove_slab(struct kmem_cache *cp, struct kmem_slab *slab)
 {
         DEBUG_PRINT("Removing slab %p from cache %s freelist\n", (void*)slab, cp->name);
         cp->slab_count--;
@@ -146,7 +146,7 @@ _kmem_cache_remove_slab(struct kmem_cache *cp, struct kmem_slab *slab)
  * Set offset param to skip initializing the first n items in the cache
  */
 static inline struct kmem_slab *
-_kmem_slab_init_small(struct kmem_cache *cp, void *page, size_t offset)
+__slab_init_small(struct kmem_cache *cp, void *page, size_t offset)
 {
         struct kmem_slab *slab;
         size_t available;
@@ -185,7 +185,7 @@ _kmem_slab_init_small(struct kmem_cache *cp, void *page, size_t offset)
 }
 
 static inline struct kmem_slab *
-_kmem_slab_init_large(struct kmem_cache *cp, void *page, int flags)
+__slab_init_large(struct kmem_cache *cp, void *page, int flags)
 {
         struct kmem_slab *slab;
         struct kmem_bufctl *bufctl;
@@ -238,7 +238,7 @@ _kmem_slab_init_large(struct kmem_cache *cp, void *page, int flags)
  * Returns a pointer to the new slab, or 0 on error
  */
 static struct kmem_slab *
-_kmem_cache_grow(struct kmem_cache *cp, int flags)
+__cache_grow(struct kmem_cache *cp, int flags)
 {
         void *page;
         struct kmem_slab *slab;
@@ -250,12 +250,12 @@ _kmem_cache_grow(struct kmem_cache *cp, int flags)
                 return NULL;
 
         slab = cp->type == KM_SMALL_CACHE
-                ? _kmem_slab_init_small(cp, page, 0 /* No offset */)
-                : _kmem_slab_init_large(cp, page, flags);
+                ? __slab_init_small(cp, page, 0 /* No offset */)
+                : __slab_init_large(cp, page, flags);
         slab->start = page;
 
         // Add the slab into the cache's freelist
-        _kmem_cache_add_slab(cp, slab);
+        __cache_add_slab(cp, slab);
 
         return slab;
 }
@@ -265,7 +265,7 @@ _kmem_cache_grow(struct kmem_cache *cp, int flags)
  * ASSUMES: cache type is KM_REGULAR_CACHE
  */
 static inline void
-_kmem_slab_reap_large(struct kmem_slab *slab)
+__slab_reap_large(struct kmem_slab *slab)
 {
         struct kmem_bufctl *bufctl;
         unsigned count;
@@ -287,7 +287,7 @@ _kmem_slab_reap_large(struct kmem_slab *slab)
  *      | |___/
  */
 static void
-_kmem_cache_reap(struct kmem_cache *cp, unsigned force)
+__cache_reap(struct kmem_cache *cp, unsigned force)
 {
         struct kmem_slab *slab;
         struct kmem_slab *next;
@@ -300,10 +300,10 @@ _kmem_cache_reap(struct kmem_cache *cp, unsigned force)
                 // For every slab that must meet their maker...
                 // (but don't free the last slab)
                 // https://xkcd.com/393/
-                _kmem_cache_remove_slab(cp, slab);
+                __cache_remove_slab(cp, slab);
                 buf = (void*)((unsigned long)slab->start>> 12 << 12);
                 if (cp->type == KM_REGULAR_CACHE) {
-                        _kmem_slab_reap_large(slab);
+                        __slab_reap_large(slab);
                 }
 
                 next = slab->next;
@@ -321,7 +321,7 @@ _kmem_cache_reap(struct kmem_cache *cp, unsigned force)
  * This moves the given slab to the HEAD postion in the freelist
  */
 static inline void
-_kmem_slab_complete(struct kmem_cache *cp, struct kmem_slab *slab)
+__slab_complete(struct kmem_cache *cp, struct kmem_slab *slab)
 {
         struct kmem_slab *old_last;
         struct kmem_slab *old_next;
@@ -350,7 +350,7 @@ _kmem_slab_complete(struct kmem_cache *cp, struct kmem_slab *slab)
  * ASSUMED: that the slab has free bufs available
  */
 static inline void *
-_kmem_cache_alloc_small(struct kmem_cache *cp, struct kmem_slab *slab)
+__cache_alloc_small(struct kmem_cache *cp, struct kmem_slab *slab)
 {
         void **buf;
 
@@ -358,7 +358,7 @@ _kmem_cache_alloc_small(struct kmem_cache *cp, struct kmem_slab *slab)
         if (!buf) {
                 DEBUG_PRINT("Unable to obtain buf, slab is full...\n");
                 DEBUG_PRINT("Slab size %lu, refcount %lu\n", slab->size, slab->refcount);
-                slab = _kmem_cache_grow(cp, KM_SLEEP);
+                slab = __cache_grow(cp, KM_SLEEP);
                 buf = slab->firstbuf.buf;
                 if (!buf) return NULL;
         }
@@ -378,14 +378,14 @@ _kmem_cache_alloc_small(struct kmem_cache *cp, struct kmem_slab *slab)
  * ASSUMED: that the slab has free bufs available
  */
 static inline void *
-_kmem_cache_alloc_large(struct kmem_cache *cp, struct kmem_slab *slab)
+__cache_alloc_large(struct kmem_cache *cp, struct kmem_slab *slab)
 {
         struct kmem_bufctl *bufctl;
 
         bufctl = slab->firstbuf.bufctl;
         if (!bufctl) {
                 DEBUG_PRINT("Unable to obtain bufctl, slab is full...\n");
-                slab = _kmem_cache_grow(cp, KM_SLEEP);
+                slab = __cache_grow(cp, KM_SLEEP);
                 bufctl = slab->firstbuf.bufctl;
                 if (!bufctl) return NULL;
         }
@@ -402,7 +402,7 @@ _kmem_cache_alloc_large(struct kmem_cache *cp, struct kmem_slab *slab)
  * ASSUMED: the cache type == KM_SMALL_CACHE
  */
 static inline void
-_kmem_cache_free_small(struct kmem_cache *cp, void *buf)
+__cache_free_small(struct kmem_cache *cp, void *buf)
 {
         void *page;
         struct kmem_slab *slab;
@@ -421,8 +421,8 @@ _kmem_cache_free_small(struct kmem_cache *cp, void *buf)
         if((--slab->refcount) == 0 && cp->slab_count > 1) {
                 // Don't reap the last slab in the cache
                 DEBUG_PRINT("Slab is no longer referenced. Reaping...\n");
-                _kmem_cache_empty_slab(cp, slab);
-                _kmem_cache_reap(cp, 0);
+                __cache_empty_slab(cp, slab);
+                __cache_reap(cp, 0);
         } else {
                 DEBUG_PRINT("Slab refcount is now %lu\n", slab->refcount);
         }
@@ -436,7 +436,7 @@ _kmem_cache_free_small(struct kmem_cache *cp, void *buf)
  * ASSUMED: the cache type == KM_REGULAR_CACHE
  */
 static inline void
-_kmem_cache_free_large(struct kmem_cache *cp, void *buf)
+__cache_free_large(struct kmem_cache *cp, void *buf)
 {
         struct kmem_slab *slab;
         struct kmem_bufctl *bufctl;
@@ -457,10 +457,10 @@ _kmem_cache_free_large(struct kmem_cache *cp, void *buf)
         if ((--slab->refcount) == 0 && cp->slab_count > 1) {
                 // Don't reap the slab slab in the cache
                 DEBUG_PRINT("Slab is no longer referenced. Reaping...\n");
-                _kmem_cache_empty_slab(cp, slab);
+                __cache_empty_slab(cp, slab);
 
                 // Reclaim the slab
-                _kmem_cache_reap(cp, 0);
+                __cache_reap(cp, 0);
         } else {
                 DEBUG_PRINT("Slab refcount is now %lu\n", slab->refcount);
         }
