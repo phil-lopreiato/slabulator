@@ -7,14 +7,10 @@
 struct kmem_hash *
 kmem_hash_init(struct kmem_cache *hash_cache, struct kmem_cache *node_cache)
 {
-#if DEBUG
-        printf("Allocating hash from cache %s\n", hash_cache->name);
-#endif
+        DEBUG_PRINT("Allocating hash from cache %s\n", hash_cache->name);
         struct kmem_hash *hash = kmem_cache_alloc(hash_cache, KM_NOSLEEP);
         if (!hash) {
-#if DEBUG
-                printf("Unable to init hash\n");
-#endif
+                DEBUG_PRINT("Unable to init hash\n");
         }
 
         hash->node_cache = node_cache;
